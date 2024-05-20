@@ -1,0 +1,45 @@
+{
+  "name": "tradify",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --experimental-debug-memory-usage",
+    "start": "next start",
+    "t": "next dev --turbo"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "luxon": "^3.4.4",
+    "next": "^14.2.3",
+    "react": "^18.3.1",
+    "sharp": "^0.33.4",
+    "crypto": "^1.0.1",
+    "moment": "^2.30.1",
+    "bcryptjs": "^2.4.3",
+    "nprogress": "^0.2.0",
+    "next-auth": "^4.24.7",
+    "react-dom": "^18.3.1",
+    "apexcharts": "^3.49.1",
+    "klinecharts": "^9.8.8",
+    "framer-motion": "^11.2.4",
+    "@iconify/react": "^4.1.1",
+    "simplebar-react": "^3.2.5",
+    "@mui/material": "^5.15.18",
+    "@prisma/client": "^5.14.0",
+    "@mui/x-data-grid": "^7.5.0",
+    "@emotion/cache": "^11.11.0",
+    "@emotion/react": "^11.11.4",
+    "react-apexcharts": "^1.4.1",
+    "@emotion/styled": "^11.11.5",
+    "react-grid-layout": "^1.4.4",
+    "@mui/lab": "^5.0.0-alpha.170",
+    "@mui/x-date-pickers": "^7.5.0",
+    "@mui/icons-material": "^5.15.18",
+    "@mui/material-nextjs": "^5.15.11",
+    "react-organizational-chart": "^2.2.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.14.0"
+  }
+}

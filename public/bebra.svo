@@ -1,0 +1,2053 @@
+LJqtt0gBCd3hyWSAVBacqRnSDRpb6B5axBHBCAVdI11tZJOAbxn6v07DdrKiZPeq
+
+dw4DxIntpKiZIeJLoomJtlJ6LCkGn49ZO3eZViMWPcnMgjgMIDQMeVEN8g9Q2EZO
+
+////
+
+v6uQqFoYs6UZKJSeG5ts8rEKJ83BP1Kgt5DXwlIULBm3ndJszRTvUlCbq9cnygz5
+
+ds634YwwTQLlFs75AolKfKuoeG7wDEq6H03IKGw3SwQnndp2zbICNCSKAP7I2P1r
+
+////
+
+hyYzIL0DcP8GpHOHaO
+
+WlJM7LxXULs6w5OYvs2Ay6awtRv5ok3k4fuO
+
+////
+
+  registerIndicator({
+    name: "Buy/Sell",
+    calc: (kLineDataList) =>
+      kLineDataList.map((kLineData) => kLineData.timestamp),
+    draw: ({ ctx, visibleRange, indicator, xAxis, yAxis }) => {
+      var result = indicator.result;
+
+      for (let i = visibleRange.from; i < visibleRange.to; i++) {
+        var deals = aggDealsRef.filter((deal) => deal.time === result[i]);
+
+        deals.forEach((deal) => {
+          var x = xAxis.convertToPixel(i);
+          var y = yAxis.convertToPixel(deal.price);
+
+          if (deal === aggDealsRef[0]) {
+            new LineFigure({
+              attrs: {
+                coordinates: [
+                  { x, y },
+                  { x: x + 10000, y },
+                ],
+              },
+              styles: {
+                style: "dashed",
+                color: deal.side === "BUY" ? "#00B8D9" : "#FFAB00",
+                dashedValue: [3],
+              },
+            }).draw(ctx);
+          }
+
+          if (deal === aggDealsRef[aggDealsRef.length - 1]) {
+            new LineFigure({
+              attrs: {
+                coordinates: [
+                  { x, y },
+                  { x: x + 10000, y },
+                ],
+              },
+              styles: {
+                style: "dashed",
+                color: deal.side === "BUY" ? "#00B8D9" : "#FFAB00",
+                dashedValue: [3],
+              },
+            }).draw(ctx);
+
+            var yOpen = yAxis.convertToPixel(deals[0].price);
+
+            var yClose = yAxis.convertToPixel(deals[deals.length - 1].price);
+
+            new TextFigure({
+              attrs: {
+                x: x + 300,
+                y:
+                  Math.max(yOpen, yClose) - Math.min(yOpen, yClose) < 20
+                    ? Math.max(yOpen, yClose) - 10
+                    : (yOpen + yClose) / 2,
+                text: procent + "%",
+                align: ctx.textAlign,
+                baseline: ctx.textBaseline,
+              },
+              styles: {
+                style: "stroke",
+                color: deal.side === "BUY" ? "#00B8D9" : "#FFAB00",
+                family: "inherit",
+              },
+            }).draw(ctx);
+          }
+
+          var direction = deal.side === "BUY" ? 1 : -1;
+
+          ctx.fillStyle = deal.side === "BUY" ? "#00B8D9" : "#FFAB00";
+          ctx.beginPath();
+          ctx.moveTo(x - 10, y + direction * 10);
+          ctx.lineTo(x, y - direction * 10);
+          ctx.lineTo(x + 10, y + direction * 10);
+          ctx.lineTo(x, y);
+          ctx.closePath();
+          ctx.fill();
+
+          // ctx.moveTo(x + direction * 10, y + direction * 10);
+          // ctx.lineTo(x, y + direction * 10);
+          // ctx.lineTo(x - direction * 10, y + direction * 10);
+        });
+      }
+      return false;
+    },
+  });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  "use client";
+
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import CardHeader from "@mui/material/CardHeader";
+import IconButton from "@mui/material/IconButton";
+import Typography from "@mui/material/Typography";
+import Container from "@mui/material/Container";
+import { useTheme } from "@mui/material/styles";
+import MenuItem from "@mui/material/MenuItem";
+import Skeleton from "@mui/material/Skeleton";
+import Select from "@mui/material/Select";
+import Card from "@mui/material/Card";
+import Box from "@mui/material/Box";
+
+import { useMemo, useState } from "react";
+import Chart from "react-apexcharts";
+import { DateTime } from "luxon";
+import moment from "moment";
+
+import Iconify from "#/utils/iconify";
+
+export default function currentOfTrades({
+  data,
+  colors,
+  timeRange,
+  isLoading,
+  chartTypes,
+  timeRangeStatus,
+  handleDeleteWidget,
+}) {
+  const theme = useTheme();
+
+  const [chartType, setChartType] = useState(
+    chartTypes !== null ? chartTypes["counter-of-trades"] : "bar"
+  );
+
+  const [series, categories, counter] = useMemo(() => {
+    if (data) {
+      let current = {};
+      let filter = [];
+
+      switch (timeRangeStatus) {
+        case "current-day":
+          filter = data.filter((trade) =>
+            moment(parseInt(trade.entry_time)).isBetween(
+              DateTime.now().startOf("day").toMillis(),
+              DateTime.now().endOf("day").toMillis()
+            )
+          );
+
+          filter.forEach((trade) => {
+            var symbol = trade.symbol;
+            if (!current[symbol]) {
+              current[symbol] = Array(24).fill(0);
+            }
+
+            var entryHour = moment(parseInt(trade.entry_time)).hour();
+            current[symbol][entryHour] += 1;
+          });
+
+          return [
+            Object.entries(current).map(([symbol, counts]) => ({
+              name: symbol,
+              data: counts,
+            })),
+            Array(24)
+              .fill()
+              .map((_, index) =>
+                DateTime.now()
+                  .startOf("day")
+                  .plus({ hours: index })
+                  .toFormat("HH:mm")
+              ),
+            filter.length,
+          ];
+        case "current-week":
+          filter = data.filter((trade) =>
+            moment(parseInt(trade.entry_time)).isBetween(
+              DateTime.now().startOf("week").toMillis(),
+              DateTime.now().endOf("week").toMillis()
+            )
+          );
+          filter.forEach((trade) => {
+            var symbol = trade.symbol;
+            if (!current[symbol]) {
+              current[symbol] = Array(7).fill(0);
+            }
+
+            var entryDay = moment(parseInt(trade.entry_time)).day();
+            var luxonDayIndex = (entryDay + 6) % 7;
+            current[symbol][luxonDayIndex] += 1;
+          });
+
+          return [
+            Object.entries(current).map(([symbol, counts]) => ({
+              name: symbol,
+              data: counts,
+            })),
+            Array(7)
+              .fill()
+              .map((_, index) =>
+                DateTime.now()
+                  .startOf("week")
+                  .plus({ days: index })
+                  .toFormat("dd.MM")
+              ),
+            filter.length,
+          ];
+        case "current-month":
+          filter = data.filter((trade) =>
+            moment(parseInt(trade.entry_time)).isBetween(
+              DateTime.now().startOf("month").toMillis(),
+              DateTime.now().endOf("month").toMillis()
+            )
+          );
+          filter.forEach((trade) => {
+            var symbol = trade.symbol;
+            if (!current[symbol]) {
+              current[symbol] = Array(DateTime.now().daysInMonth).fill(0);
+            }
+
+            var entryDay = moment(parseInt(trade.entry_time)).date();
+            current[symbol][entryDay - 1] += 1;
+          });
+
+          return [
+            Object.entries(current).map(([symbol, counts]) => ({
+              name: symbol,
+              data: counts,
+            })),
+            Array(DateTime.now().daysInMonth)
+              .fill()
+              .map((_, index) =>
+                DateTime.now()
+                  .startOf("month")
+                  .plus({ days: index })
+                  .toFormat("dd")
+              ),
+            filter.length,
+          ];
+        case "all":
+          const startOfLast30Days = DateTime.now()
+            .minus({ days: 29 })
+            .startOf("day")
+            .toMillis();
+
+          filter = data.filter((trade) =>
+            moment(parseInt(trade.entry_time)).isBetween(
+              startOfLast30Days,
+              DateTime.now().endOf("day").toMillis()
+            )
+          );
+
+          filter.forEach((trade) => {
+            var symbol = trade.symbol;
+            if (!current[symbol]) {
+              current[symbol] = Array(30).fill(0);
+            }
+
+            var entryDay = moment(parseInt(trade.entry_time)).diff(
+              startOfLast30Days,
+              "days"
+            );
+            if (entryDay >= 0 && entryDay < 30) {
+              current[symbol][entryDay] += 1;
+            }
+          });
+
+          return [
+            Object.entries(current).map(([symbol, counts]) => ({
+              name: symbol,
+              data: counts,
+            })),
+            Array(30)
+              .fill()
+              .map((_, index) =>
+                DateTime.now()
+                  .minus({ days: 29 })
+                  .startOf("day")
+                  .plus({ days: index })
+                  .toFormat("dd.MM")
+              ),
+            filter.length,
+          ];
+        case "custom":
+          try {
+            const startOfCustomRange = DateTime.fromMillis(timeRange[0])
+              .startOf("day")
+              .toMillis();
+            const endOfCustomRange = DateTime.fromMillis(timeRange[1])
+              .endOf("day")
+              .toMillis();
+
+            if (endOfCustomRange - startOfCustomRange < 2592000000) {
+              filter = data.filter((trade) =>
+                moment(parseInt(trade.entry_time)).isBetween(
+                  startOfCustomRange,
+                  endOfCustomRange
+                )
+              );
+              filter.forEach((trade) => {
+                var symbol = trade.symbol;
+                if (!current[symbol]) {
+                  current[symbol] = Array(
+                    DateTime.fromMillis(timeRange[1]).diff(
+                      DateTime.fromMillis(timeRange[0]),
+                      "days"
+                    ).days + 1
+                  ).fill(0);
+                }
+
+                var entryDay = moment(parseInt(trade.entry_time)).diff(
+                  startOfCustomRange,
+                  "days"
+                );
+                if (entryDay >= 0 && entryDay < current[symbol].length) {
+                  current[symbol][entryDay] += 1;
+                }
+              });
+
+              return [
+                Object.entries(current).map(([symbol, counts]) => ({
+                  name: symbol,
+                  data: counts,
+                })),
+                Array(
+                  DateTime.fromMillis(timeRange[1]).diff(
+                    DateTime.fromMillis(timeRange[0]),
+                    "days"
+                  ).days + 1
+                )
+                  .fill()
+                  .map((_, index) =>
+                    DateTime.fromMillis(timeRange[0])
+                      .startOf("day")
+                      .plus({ days: index })
+                      .toFormat("dd.MM")
+                  ),
+                filter.length,
+              ];
+            } else {
+              const startOfLast30Days = DateTime.now()
+                .minus({ days: 29 })
+                .startOf("day")
+                .toMillis();
+
+              filter = data.filter((trade) =>
+                moment(parseInt(trade.entry_time)).isBetween(
+                  startOfLast30Days,
+                  DateTime.now().endOf("day").toMillis()
+                )
+              );
+
+              filter.forEach((trade) => {
+                const symbol = trade.symbol;
+                if (!current[symbol]) {
+                  current[symbol] = Array(30).fill(0);
+                }
+
+                const entryDay = moment(parseInt(trade.entry_time)).diff(
+                  startOfLast30Days,
+                  "days"
+                );
+                if (entryDay >= 0 && entryDay < 30) {
+                  current[symbol][entryDay] += 1;
+                }
+              });
+
+              return [
+                Object.entries(current).map(([symbol, counts]) => ({
+                  name: symbol,
+                  data: counts,
+                })),
+                Array(30)
+                  .fill()
+                  .map((_, index) =>
+                    DateTime.now()
+                      .minus({ days: 29 })
+                      .startOf("day")
+                      .plus({ days: index })
+                      .toFormat("dd.MM")
+                  ),
+                filter.length,
+              ];
+            }
+          } catch (e) {
+            return [{}, [], 0];
+          }
+        default:
+          return [{}, [], 0];
+      }
+    } else {
+      return [{}, [], 0];
+    }
+  }, [data, timeRange, timeRangeStatus]);
+
+  const enabled =
+    timeRangeStatus === "all" || timeRangeStatus === "custom" ? false : true;
+
+  return isLoading ? (
+    <Skeleton sx={{ height: "100%" }} />
+  ) : (
+    <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <CardHeader
+        title="Счетчик сделок"
+        titleTypographyProps={{
+          className: "drag-header",
+          sx: { cursor: "move" },
+        }}
+        action={
+          <>
+            <FormControl sx={{ mr: 1 }} size="small">
+              <InputLabel>Тип графика</InputLabel>
+              <Select
+                label="Тип графика"
+                value={chartType}
+                onChange={(e) => {
+                  setChartType(e.target.value);
+                  localStorage.setItem(
+                    "chartTypes",
+                    JSON.stringify({
+                      ...chartTypes,
+                      "counter-of-trades": e.target.value,
+                    })
+                  );
+                }}
+              >
+                <MenuItem value={"bar"}>Столбчатый</MenuItem>
+                <MenuItem value={"numeric"}>Числовой</MenuItem>
+              </Select>
+            </FormControl>
+            <IconButton
+              onClick={() => {
+                handleDeleteWidget(3);
+              }}
+            >
+              <Iconify
+                icon="solar:close-square-outline"
+                color="text.disabled"
+              />
+            </IconButton>
+          </>
+        }
+        sx={{ p: "24px 24px 0px" }}
+      />
+      <Box sx={{ flexGrow: 1 }} />
+      {chartType === "bar" ? (
+        <Chart
+          options={{
+            chart: {
+              type: "bar",
+              stacked: true,
+              toolbar: {
+                show: false,
+              },
+              zoom: {
+                enabled: false,
+              },
+              dropShadow: {
+                enabled: false,
+              },
+              animations: {
+                enabled,
+                animateGradually: {
+                  enabled,
+                },
+                dynamicAnimation: {
+                  enabled,
+                },
+              },
+            },
+            colors,
+            grid: {
+              borderColor: "rgba(145, 158, 171, 0.2)",
+              strokeDashArray: 3,
+            },
+            legend: {
+              position: "top",
+              horizontalAlign: "right",
+              labels: {
+                colors: theme.palette.text.primary,
+              },
+              fontFamily: "inherit",
+              fontWeight: 500,
+              fontSize: "13px",
+              itemMargin: {
+                horizontal: 14,
+                vertical: 5,
+              },
+              markers: {
+                width: 11,
+                height: 11,
+                offsetX: -2,
+              },
+            },
+            dataLabels: {
+              enabled: false,
+            },
+            plotOptions: {
+              bar: {
+                columnWidth: "13%",
+              },
+            },
+            tooltip: {
+              x: {
+                show: false,
+              },
+              style: {
+                fontSize: "12px",
+                fontFamily: "inherit",
+              },
+            },
+            yaxis: {
+              labels: {
+                style: {
+                  colors: theme.palette.text.secondary,
+                },
+              },
+            },
+            xaxis: {
+              categories,
+              axisBorder: {
+                show: false,
+              },
+              axisTicks: {
+                show: false,
+              },
+              labels: {
+                style: {
+                  colors: theme.palette.text.secondary,
+                },
+              },
+            },
+          }}
+          series={series}
+          height="85%"
+          type="bar"
+        />
+      ) : (
+        <Container
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+          }}
+        >
+          <Typography variant="h3" sx={{ m: "auto" }}>
+            Всего:
+          </Typography>
+          <Box
+            sx={{
+              m: "auto",
+              lineHeight: 0,
+              fontWeight: 700,
+              cursor: "default",
+              padding: "0px 6px",
+              fontSize: "0.75rem",
+              borderRadius: "6px",
+              alignItems: "center",
+              whiteSpace: "nowrap",
+              width: "min-content",
+              height: "min-content",
+              display: "inline-flex",
+              justifyContent: "center",
+              backgroundColor: "rgba(0, 184, 217, 0.16)",
+              transition: "all 200ms cubic-bezier(0.4, 0, 0.2, 1) 0ms",
+              color:
+                theme.palette.mode === "dark"
+                  ? "rgb(97, 243, 243)"
+                  : "rgb(0, 108, 156)",
+            }}
+          >
+            <Typography variant="h3">{counter}</Typography>
+          </Box>
+        </Container>
+      )}
+      <Box sx={{ flexGrow: 1 }} />
+      <Iconify
+        icon="tabler:border-corner-ios"
+        color="#637381"
+        width={18}
+        sx={{
+          position: "absolute",
+          rotate: "180deg",
+          bottom: 0,
+          right: 0,
+        }}
+      />
+    </Card>
+  );
+}
+
+
+
+
+
+switch (timeRangeStatus) {
+        case "current-day":
+          return data.filter((trade) =>
+            moment(parseInt(trade.entry_time)).isBetween(
+              DateTime.now().startOf("day").toMillis(),
+              DateTime.now().endOf("day").toMillis()
+            )
+          );
+
+        case "current-week":
+          return data.filter((trade) =>
+            moment(parseInt(trade.entry_time)).isBetween(
+              DateTime.now().startOf("week").toMillis(),
+              DateTime.now().endOf("week").toMillis()
+            )
+          );
+
+        case "current-month":
+          return data.filter((trade) =>
+            moment(parseInt(trade.entry_time)).isBetween(
+              DateTime.now().startOf("month").toMillis(),
+              DateTime.now().endOf("month").toMillis()
+            )
+          );
+
+        case "last-7":
+          return data;
+
+        case "last-30":
+          return data;
+
+        case "custom":
+          try {
+            return data.filter((trade) =>
+              moment(parseInt(trade.entry_time)).isBetween(
+                DateTime.fromMillis(timeRange[0]).startOf("day").toMillis(),
+                DateTime.fromMillis(timeRange[1]).endOf("day").toMillis()
+              )
+            );
+          } catch (e) {
+            return [];
+          }
+
+        default:
+          return [];
+      }
+
+
+
+
+
+
+
+"use server";
+
+import crypto from "crypto";
+
+import prisma from "#/utils/prisma";
+
+const WebSocket = require("ws");
+
+export async function createBynanceTrades(
+  uid,
+  kid,
+  apikey,
+  symbols,
+  secretkey,
+  startTime
+) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      var { serverTime } = await fetch(
+        "https://fapi.binance.com/fapi/v1/time",
+        {
+          cache: "no-cache",
+        }
+      ).then((r) => r.json());
+
+      const ws = new WebSocket("wss://ws-api.binance.com:9443/ws-api/v3");
+
+      let id = 1;
+
+      ws.on("open", (data) => {
+        console.log("Открыто: ", data);
+        const endTime = serverTime - 1000;
+        ws.send(
+          JSON.stringify({
+            method: "allOrders",
+            params: {
+              symbol: "SOLUSDT",
+              startTime,
+              timestamp: serverTime,
+              apiKey: apikey,
+              signature: crypto
+                .createHmac("sha256", secretkey)
+                .update(
+                  `apiKey=${apikey}&startTime=${startTime}&symbol=SOLUSDT&timestamp=${serverTime}`
+                )
+                .digest("hex"),
+            },
+            id: id++,
+          })
+        );
+      });
+
+      ws.on("message", (data) => {
+        console.log("Новое сообщение бля: ", JSON.parse(data));
+        resolve(JSON.parse(data));
+      });
+
+      ws.on("reply", (data) => {
+        console.log("Новый ответ бля: ", data);
+      });
+
+      ws.on("formattedMessage", (data) => {
+        console.log("Чёто ещё: ", data);
+      });
+
+      ws.on("close", (data) => {
+        console.log("Закрыто: ", data);
+        resolve(200);
+      });
+
+      ws.on("error", (err) => {
+        console.error("Ошибка нахуй: ", err);
+        reject(err);
+      });
+
+      setTimeout(() => {
+        console.log("killing all connections");
+        ws.close();
+      }, 1000 * 15);
+    } catch (e) {
+      console.log("Какая-то хуйня в функции createBynanceTrades: ", e);
+      return null;
+    }
+  });
+}
+
+
+
+
+
+
+
+    const interval = 10 * 1000; // 2 seconds interval
+    const maxInterval = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+
+    var deals = await Promise.all(
+      symbols.map(async (symbol) => {
+        var symbolTrades = [];
+
+        for (let start = startTime; start < serverTime; start += maxInterval) {
+          var end = Math.min(start + maxInterval, serverTime);
+
+          const signature = crypto
+            .createHmac("sha256", secretkey)
+            .update(
+              `symbol=${symbol}&timestamp=${serverTime}&recvWindow=60000&limit=1000&startTime=${start}&endTime=${end}`
+            )
+            .digest("hex");
+
+          const url = `https://fapi.binance.com/fapi/v1/userTrades?symbol=${symbol}&timestamp=${serverTime}&signature=${signature}&recvWindow=60000&limit=1000&startTime=${start}&endTime=${end}`;
+
+          const response = await fetch(url, {
+            headers: { "X-MBX-APIKEY": apikey },
+            cache: "no-cache",
+          });
+
+          const chunk = await response.json();
+          symbolTrades.push(chunk);
+
+          await delay(interval);
+        }
+
+        return symbolTrades;
+      })
+    );
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      return new Promise(async (resolve, reject) => {
+    try {
+      var ws = new WebSocket("wss://stream.bybit.com/v5/private");
+
+      let id = 1;
+
+      var msgs = [];
+      ws.on("open", (data) => {
+        console.log("Открыто: ", data);
+        const expires = new Date().getTime() + 10000;
+
+        const args = [
+          apikey,
+          expires,
+          crypto
+            .createHmac("sha256", secretkey)
+            .update(`GET/realtime${expires}`)
+            .digest("hex"),
+        ];
+        console.log("args: ", args);
+
+        ws.send(
+          JSON.stringify({
+            req_id: id++,
+            op: "auth",
+            args,
+          })
+        );
+
+        setInterval(() => {
+          ws.ping();
+        }, 30000);
+        ws.ping();
+        ws.send(
+          JSON.stringify({ op: "subscribe", args: ["execution.linear"] })
+        );
+      });
+
+      ws.on("message", (data) => {
+        console.log("Новое сообщение бля: ", JSON.parse(data));
+        msgs.push(JSON.parse(data));
+      });
+
+      ws.on("reply", (data) => {
+        console.log("Новый ответ бля: ", data);
+      });
+
+      ws.on("formattedMessage", (data) => {
+        console.log("Чёто ещё: ", data);
+      });
+
+      ws.on("close", (data) => {
+        console.log("Закрыто: ", data);
+        resolve(msgs);
+      });
+
+      ws.on("error", (err) => {
+        console.error("Ошибка нахуй: ", err);
+        reject(err);
+      });
+
+      setTimeout(() => {
+        console.log("killing all connections");
+        ws.close();
+      }, 1000 * 150);
+    } catch (e) {
+      console.log("Какая-то хуйня в функции createBynanceTrades: ", e);
+      return null;
+    }
+  });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   createKey(user.id, apikey, secretkey, title, 1).then((k) => {
+          setLoading(false);
+
+          if (k === null) {
+            setApikeyError("Такой ключ уже существует");
+            return;
+          }
+
+          setOpenDialog(false);
+          setShowSuccessSnackbar(true);
+          setKeys((prev) => [...prev, k]);
+          setLoadingTrades({ id: k.id, status: true });
+          setSecretkeyError("");
+          setApikeyError("");
+          setTitleError("");
+          secretkeyRef.current = "";
+          apikeyRef.current = "";
+          titleRef.current = "";
+
+          fetch("https://fapi.binance.com/fapi/v1/time")
+            .then((r) => r.json())
+            .then(({ serverTime }) => {
+              fetch(
+                `https://fapi.binance.com/fapi/v1/userTrades?timestamp=${serverTime}&recvWindow=60000&limit=1000&signature=${crypto
+                  .createHmac("sha256", secretkey)
+                  .update(`timestamp=${serverTime}&recvWindow=60000&limit=1000`)
+                  .digest("hex")}`,
+                {
+                  headers: { "X-MBX-APIKEY": apikey },
+                }
+              ).then((r) => {
+                console.log(r.json());
+              });
+            });
+        });
+        break;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          case "Binance Futures":
+        axios
+          .get("https://fapi.binance.com/fapi/v1/time")
+          .then(({ data: { serverTime } }) => {
+            const requests = [];
+
+            for (
+              let start = now - 2592000000 * 2;
+              start < now;
+              start += 604800000
+            ) {
+              const end = Math.min(start + 604800000, now);
+              requests.push(
+                axios.get("https://fapi.binance.com/fapi/v1/allOrders", {
+                  headers: {
+                    "X-MBX-APIKEY": apikey,
+                  },
+                  params: {
+                    timestamp: serverTime,
+                    recvWindow: 60000,
+                    limit: 1000,
+                    startTime: start,
+                    endTime: end,
+                    signature: crypto
+                      .createHmac("sha256", secretkey)
+                      .update(
+                        `timestamp=${serverTime}&recvWindow=60000&limit=1000&startTime=${start}&endTime=${end}`
+                      )
+                      .digest("hex"),
+                  },
+                })
+              );
+            }
+            Promise.all(requests)
+              .then((responses) => {
+                const symbols = new Set();
+
+                responses
+                  .reduce((acc, response) => acc.concat(response.data), [])
+                  .forEach((e) => {
+                    symbols.add(e.symbol);
+                  });
+
+                createKey(user.id, apikey, secretkey, title, 1).then((k) => {
+                  setLoading(false);
+
+                  if (k === null) {
+                    setApikeyError("Такой ключ уже существует");
+                    return;
+                  }
+
+                  setOpenDialog(false);
+                  setShowSuccessSnackbar(true);
+                  setKeys((prev) => [...prev, k]);
+                  setLoadingTrades({ id: k.id, status: true });
+                  setSecretkeyError("");
+                  setApikeyError("");
+                  setTitleError("");
+                  secretkeyRef.current = "";
+                  apikeyRef.current = "";
+                  titleRef.current = "";
+
+                  // createBynanceTrades(
+                  //   user.id,
+                  //   k.id,
+                  //   apikey,
+                  //   Array.from(symbols),
+                  //   secretkey
+                  // ).then((b) => {
+                  //   console.log("createBynanceTrades: ", b);
+                  //   setLoadingTrades({ id: null, status: false });
+                  //   mutate("null");
+                  // });
+
+                  const maxInterval = 7 * 24 * 60 * 60 * 1000;
+                  const Arraysymbols = Array.from(symbols);
+                  const startTime = now - 2592000000 * 2;
+
+                  (async () => {
+                    let serverTime = await fetchServerTime();
+
+                    const bebra = setInterval(async () => {
+                      serverTime = await fetchServerTime();
+                    }, 18000);
+
+                    const deals = await Promise.all(
+                      Arraysymbols.map(async (symbol) => {
+                        var symbolTrades = [];
+
+                        for (
+                          let start = startTime;
+                          start < serverTime;
+                          start += maxInterval
+                        ) {
+                          var end = Math.min(start + maxInterval, serverTime);
+
+                          symbolTrades.push(
+                            await fetch(
+                              `https://fapi.binance.com/fapi/v1/userTrades?symbol=${symbol}&startTime=${start}&endTime=${end}&timestamp=${serverTime}&recvWindow=60000&limit=1000&signature=${crypto
+                                .createHmac("sha256", secretkey)
+                                .update(
+                                  `symbol=${symbol}&startTime=${start}&endTime=${end}&timestamp=${serverTime}&recvWindow=60000&limit=1000`
+                                )
+                                .digest("hex")}`,
+                              {
+                                headers: { "X-MBX-APIKEY": apikey },
+                                cache: "no-cache",
+                              }
+                            ).then((r) => r.json())
+                          );
+
+                          await sleep(20000);
+                        }
+
+                        return symbolTrades;
+                      })
+                    );
+
+                    clearInterval(bebra);
+
+                    setLoadingTrades({ id: null, status: false });
+
+                    console.log("deals: ", deals);
+                  })();
+
+                  async function fetchServerTime() {
+                    const response = await fetch(
+                      "https://fapi.binance.com/fapi/v1/time"
+                    );
+                    const data = await response.json();
+                    return data.serverTime;
+                  }
+
+                  function sleep(ms) {
+                    return new Promise((resolve) => setTimeout(resolve, ms));
+                  }
+                });
+              })
+              .catch((e) => {
+                setLoading(false);
+                setApikeyError("Неверный ключ");
+                setSecretkeyError("Неверный ключ");
+                console.log("хуйня от binance: ", e);
+              });
+          });
+        break;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      <Container sx={{ textAlign: "center" }}>
+        <Typography variant="h3" color="text.primary" paragraph>
+          Доступ запрещён
+        </Typography>
+        <Typography variant="body1" color="text.secondary" paragraph>
+          Верифицируйте аккаунт, чтобы получить возможность добавлять API-ключи.
+        </Typography>
+        <Box
+          component="svg"
+          viewBox="0 0 480 360"
+          xmlns="http://www.w3.org/2000/svg"
+          sx={{ width: "100%", height: "260px", mt: "50px" }}
+        >
+          <defs>
+            <linearGradient
+              id="BG"
+              x1="19.496%"
+              x2="77.479%"
+              y1="71.822%"
+              y2="16.69%"
+            >
+              <stop offset="0%" stop-color="#00A76F"></stop>
+              <stop offset="100%" stop-color="#00A76F" stop-opacity="0"></stop>
+            </linearGradient>
+          </defs>
+          <path
+            fill="url(#BG)"
+            fill-rule="nonzero"
+            d="M0 198.78c0 41.458 14.945 79.236 39.539 107.786 28.214 32.765 69.128 53.365 114.734 53.434a148.44 148.44 0 0056.495-11.036c9.051-3.699 19.182-3.274 27.948 1.107a75.779 75.779 0 0033.957 8.01c5.023 0 9.942-.494 14.7-1.433 13.58-2.67 25.94-8.99 36.09-17.94 6.378-5.627 14.547-8.456 22.897-8.446h.142c27.589 0 53.215-8.732 74.492-23.696 19.021-13.36 34.554-31.696 44.904-53.224C474.92 234.58 480 213.388 480 190.958c0-76.93-59.774-139.305-133.498-139.305-7.516 0-14.88.663-22.063 1.899C305.418 21.42 271.355 0 232.499 0a103.651 103.651 0 00-45.88 10.661c-13.24 6.487-25.011 15.705-34.64 26.939-32.698.544-62.931 11.69-87.676 30.291C25.351 97.155 0 144.882 0 198.781z"
+            opacity="0.2"
+          ></path>
+          <image href="/images/woman_4.png" height="300" x="220" y="30"></image>
+          <path
+            fill="#00A76F"
+            d="M425.545 119.2c0-5-4.6-9-9.6-8.2-2-3.7-6-6-10.2-5.9 4.3-21.4-30-21.4-25.7 0-8.7-.8-15.1 9.4-10.4 16.8 2.1 3.5 5.9 5.6 10 5.5h38.7v-.1c4.1-.4 7.2-3.9 7.2-8.1zm-321.3 81.8c.1-4.2-4.1-7.8-8.2-7-1.7-3.2-5.1-5.1-8.8-5 3.8-18.4-25.8-18.4-22 0-7.4-.7-12.9 8.1-8.9 14.4 1.8 3 5.1 4.8 8.6 4.7h33.2v-.1c3.4-.4 6.1-3.4 6.1-7z"
+            opacity="0.08"
+          ></path>
+          <path
+            fill="#FFAB00"
+            d="M111.045 142.2c58.7-1 58.6-88.3 0-89.2-58.6 1-58.6 88.3 0 89.2z"
+            opacity="0.12"
+          ></path>
+          <path
+            fill="#FFD666"
+            d="M111.045 121c30.8-.5 30.8-46.3 0-46.8-30.8.5-30.8 46.3 0 46.8z"
+          ></path>
+          <path
+            fill="#FBCDBE"
+            d="M278.045 250.1c-4.6-6.5-14 5.1-18.1 7.2-.6-2.1 1.5-41.3-1.4-41.8-2.8-3-8.1-.7-8 3.3.2-4 .5-11.3-5.6-10.2-4.8.6-3.8 6.9-3.8 10.2.1-6.1-9.5-6.1-9.4 0v5.6c.2-4.2-5.7-6.4-8.3-3-2.6-.2-.4 41.8-1.1 43.3-.2 10 8.7 19 18.8 18.7 6.1.4 12.6-1.2 16.8-5.9l19.7-21c1.7-1.6 1.8-4.5.4-6.4z"
+          ></path>
+          <path
+            fill="#000"
+            fill-opacity="0.24"
+            fill-rule="evenodd"
+            d="M248.745 212.3v32.8h1.9v-31.9c.1-2.9-2.8-5.2-5.6-4.6 2 0 3.7 1.7 3.7 3.7zm-9.4 5.6v27.2h1.9v-26.3c.1-2.8-2.8-5.2-5.5-4.6 1.9 0 3.6 1.8 3.6 3.7zm-9.4 27.2v-21.6c.1-2-1.7-3.7-3.7-3.8 2.8-.6 5.6 1.8 5.5 4.6V245h-1.8v.1z"
+            clip-rule="evenodd"
+          ></path>
+          <path
+            fill="#004B50"
+            d="M244.945 189.8c-67.6 1.3-77 97-11 111.4 81 11.8 92.7-107.3 11-111.4zm-48.5 56.2c-1-40.4 49.8-63.8 79.9-36.9l-68.3 68.3c-7.5-8.7-11.6-19.9-11.6-31.4zm48.5 48.5c-11.5 0-22.7-4.1-31.4-11.6l68.3-68.3c27 30.1 3.5 80.9-36.9 79.9z"
+          ></path>
+          <path
+            fill="url(#paint0_linear_1_129)"
+            d="M169.245 261h-11.3v-66.6c0-4.5-1.5-5.6-5.6-5.6-5.3.3-13.8-1.4-17.1 4l-55 68.3c-2.7 3.3-1.8 8.8-2 12.8 0 4.1 1.5 5.6 5.6 5.6h54.7v21.7c-.9 7.9 9.1 5.2 13.7 5.6 4.1 0 5.6-1.5 5.6-5.6v-21.7h11.4c4.4 0 5.6-1.5 5.6-5.6-.3-4.8 2-13.8-5.6-12.9zm-30.8 0h-36l36-44.4V261zm263.9 12.1c1.9 44.8-78.7 46-78 1.2h19.3c-.8 15.3 18.3 21.4 30.1 15.5 12.7-6 12.3-29.1-1-34-5.6-2.8-16.6-2-23.1-2.1v-15.1c6.3-.2 17.6.9 22.7-2.3 11.6-5.5 11.9-25.4.9-31.4-10.8-5.9-29 .1-28.2 14.5h-19.4c-.5-28.1 35.4-38.5 57-28.2 23.4 9 24.1 45.5-.2 54.6 12.3 3.9 20.1 14.6 19.9 27.3z"
+          ></path>
+          <defs>
+            <linearGradient
+              id="paint0_linear_1_129"
+              x1="78.245"
+              x2="78.245"
+              y1="187.309"
+              y2="307.306"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop stop-color="#5BE49B"></stop>
+              <stop offset="1" stop-color="#007867"></stop>
+            </linearGradient>
+          </defs>
+        </Box>
+      </Container>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        const yaxis =
+    data.length === 0
+      ? [
+          {
+            max: 5,
+            min: 0,
+            showAlways: true,
+            tickAmount: 6,
+            labels: {
+              style: {
+                colors: "#637381",
+                fontSize: "12px",
+                fontFamily: "inherit",
+              },
+              offsetX: -10,
+              formatter: (val) => `${val?.toFixed(0)}$`,
+            },
+          },
+          {
+            max:
+              data.length === 0
+                ? 5
+                : Math.max(...seriesData.map((day) => day.volume)),
+            min: 0,
+            showAlways: true,
+            tickAmount: 5,
+            opposite: true,
+            labels: {
+              align: "right",
+              style: {
+                colors: "#637381",
+                fontSize: "12px",
+                fontFamily: "inherit",
+              },
+              formatter: (val) => `$${(val / 10).toFixed()}К`,
+            },
+          },
+        ]
+      : [
+          {
+            max: 5,
+            min: 0,
+            showAlways: true,
+            tickAmount: 6,
+            labels: {
+              style: {
+                colors: "#637381",
+                fontSize: "12px",
+                fontFamily: "inherit",
+              },
+              offsetX: -10,
+              formatter: (val) => `${val?.toFixed(0)}$`,
+            },
+          },
+          {
+            max:
+              data.length === 0
+                ? 5
+                : Math.max(...seriesData.map((day) => day.volume)),
+            min: 0,
+            showAlways: true,
+            tickAmount: 5,
+            opposite: true,
+            labels: {
+              align: "right",
+              style: {
+                colors: "#637381",
+                fontSize: "12px",
+                fontFamily: "inherit",
+              },
+              formatter: (val) => `$${(val / 10).toFixed()}К`,
+            },
+          },
+        ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        "use client";
+
+import LinearProgress from "@mui/material/LinearProgress";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import Breadcrumbs from "@mui/material/Breadcrumbs";
+import LoadingButton from "@mui/lab/LoadingButton";
+import CardHeader from "@mui/material/CardHeader";
+import Typography from "@mui/material/Typography";
+import Divider from "@mui/material/Divider";
+import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
+import Paper from "@mui/material/Paper";
+import Card from "@mui/material/Card";
+import Box from "@mui/material/Box";
+
+import { Tree, TreeNode } from "react-organizational-chart";
+import React, { useState, useEffect, memo } from "react";
+import { DateTime } from "luxon";
+
+import useFormat from "#/utils/format-thousands";
+import { useUser } from "#/app/my/layout";
+
+const KlineChartTreeNode = memo(function KlineChartTreeNode() {
+  return <>KlineChartTreeNode</>;
+});
+
+const DayTreeNode = memo(function DayTreeNode({
+  index,
+  trades,
+  children,
+  setValue,
+  setCurrentData,
+}) {
+  const profit = trades.reduce(
+    (acc, trade) =>
+      acc + (parseFloat(trade.income) - parseFloat(trade.comission)),
+    0
+  );
+
+  return (
+    <TreeNode
+      label={
+        <Card sx={{ display: "inline-flex", padding: 3 }}>
+          <Box
+            sx={{
+              top: "0px",
+              left: "0px",
+              width: "100%",
+              height: "4px",
+              position: "absolute",
+              borderRadius: "12px",
+              backgroundColor:
+                profit === 0
+                  ? "text.disabled"
+                  : profit > 0
+                  ? "primary.main"
+                  : "error.main",
+            }}
+          />
+          <Stack gap={3}>
+            <Stack flexDirection="row" justifyContent="space-between">
+              <Typography variant="caption" color="text.disabled">
+                {trades.length > 0
+                  ? DateTime.fromMillis(
+                      parseInt(trades[0]?.entry_time)
+                    ).toLocaleString({
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })
+                  : "Нет данных"}
+              </Typography>
+            </Stack>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+              }}
+            >
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Чистая прибыль
+                </Typography>
+                <Typography paddingTop={1} variant="subtitle1">
+                  {useFormat(profit?.toFixed(2))}$
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Сделки
+                </Typography>
+                <Typography paddingTop={1} variant="subtitle1">
+                  {trades.length}
+                  {/* {index} */}
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Объем
+                </Typography>
+                <Typography paddingTop={1} variant="subtitle1">
+                  {useFormat(
+                    trades
+                      .reduce((acc, trade) => acc + parseFloat(trade.volume), 0)
+                      ?.toFixed(0)
+                  )}
+                  $
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Процент побед
+                </Typography>
+                <Typography paddingTop={1} variant="subtitle1">
+                  {(
+                    (trades.filter(
+                      (trade) =>
+                        parseFloat(trade.income) -
+                          parseFloat(trade.comission) >=
+                        0
+                    ).length /
+                      (trades.length === 0 ? 1 : trades.length)) *
+                    100
+                  )?.toFixed(2)}
+                  %
+                </Typography>
+              </div>
+            </Box>
+            <Button
+              variant={trades.length === 0 ? "contained" : "soft"}
+              size="small"
+              color="info"
+              fullWidth
+              disabled={trades.length === 0}
+              onClick={() => {
+                setValue("day");
+                setCurrentData(trades);
+              }}
+            >
+              Анализ дня
+            </Button>
+          </Stack>
+        </Card>
+      }
+    >
+      {children}
+    </TreeNode>
+  );
+});
+
+const WeekTreeNode = memo(function WeekTreeNode({
+  trades,
+  children,
+  setValue,
+  setCurrentData,
+}) {
+  const profit = trades.reduce(
+    (acc, trade) =>
+      acc + (parseFloat(trade.income) - parseFloat(trade.comission)),
+    0
+  );
+
+  return trades.length === 0 ? (
+    children
+  ) : (
+    <TreeNode
+      label={
+        <Card sx={{ display: "inline-flex", padding: 3 }}>
+          <Box
+            sx={{
+              top: "0px",
+              left: "0px",
+              width: "100%",
+              height: "4px",
+              position: "absolute",
+              borderRadius: "12px",
+              backgroundColor: profit >= 0 ? "primary.main" : "error.main",
+            }}
+          />
+          <Stack gap={3}>
+            <Stack flexDirection="row" justifyContent="space-between">
+              <Typography variant="caption" color="text.disabled">
+                {DateTime.fromMillis(
+                  parseInt(trades[0]?.entry_time)
+                ).toLocaleString({
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Typography>
+              <Typography variant="caption" color="text.disabled">
+                {DateTime.fromMillis(
+                  parseInt(trades[trades.length - 1]?.entry_time)
+                ).toLocaleString({
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Typography>
+            </Stack>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+              }}
+            >
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Чистая прибыль
+                </Typography>
+                <Typography paddingTop={1} variant="subtitle1">
+                  {useFormat(profit?.toFixed(2))}$
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Сделки
+                </Typography>
+                <Typography paddingTop={1} variant="subtitle1">
+                  {trades.length}
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Объем
+                </Typography>
+                <Typography paddingTop={1} variant="subtitle1">
+                  {useFormat(
+                    trades
+                      .reduce((acc, trade) => acc + parseFloat(trade.volume), 0)
+                      ?.toFixed(0)
+                  )}
+                  $
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Процент побед
+                </Typography>
+                <Typography paddingTop={1} variant="subtitle1">
+                  {(
+                    (trades.filter(
+                      (trade) =>
+                        parseFloat(trade.income) -
+                          parseFloat(trade.comission) >=
+                        0
+                    ).length /
+                      (trades.length === 0 ? 1 : trades.length)) *
+                    100
+                  )?.toFixed(2)}
+                  %
+                </Typography>
+              </div>
+            </Box>
+            <Button
+              variant={trades.length === 0 ? "contained" : "soft"}
+              size="small"
+              color="info"
+              fullWidth
+              disabled={trades.length === 0}
+              onClick={() => {
+                setValue("week");
+                setCurrentData(trades);
+              }}
+            >
+              Анализ недели
+            </Button>
+          </Stack>
+        </Card>
+      }
+    >
+      {children}
+    </TreeNode>
+  );
+});
+
+const RootTreeNode = memo(function RootTreeNode({ currentData }) {
+  return (
+    <TreeNode
+      label={
+        <Card sx={{ display: "inline-flex", padding: 3 }}>
+          <Box
+            sx={{
+              top: "0px",
+              left: "0px",
+              width: "100%",
+              height: "4px",
+              position: "absolute",
+              borderRadius: "12px",
+              backgroundColor: "text.secondary",
+            }}
+          />
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+            }}
+          >
+            <div>
+              <Typography variant="caption" color="text.secondary">
+                Чистая прибыль
+              </Typography>
+              <Typography paddingTop={1} variant="subtitle1">
+                {useFormat(
+                  currentData
+                    .reduce(
+                      (acc, trade) =>
+                        acc +
+                        (parseFloat(trade.income) -
+                          parseFloat(trade.comission)),
+                      0
+                    )
+                    .toFixed(2)
+                )}
+                $
+              </Typography>
+            </div>
+            <div>
+              <Typography variant="caption" color="text.secondary">
+                Сделки
+              </Typography>
+              <Typography paddingTop={1} variant="subtitle1">
+                {currentData.length}
+              </Typography>
+            </div>
+            <div>
+              <Typography variant="caption" color="text.secondary">
+                Объем
+              </Typography>
+              <Typography paddingTop={1} variant="subtitle1">
+                {useFormat(
+                  currentData
+                    .reduce((acc, trade) => acc + parseFloat(trade.volume), 0)
+                    .toFixed(0)
+                )}
+                $
+              </Typography>
+            </div>
+            <div>
+              <Typography variant="caption" color="text.secondary">
+                Процент побед
+              </Typography>
+              <Typography paddingTop={1} variant="subtitle1">
+                {(
+                  (currentData.filter(
+                    (trade) =>
+                      parseFloat(trade.income) - parseFloat(trade.comission) >=
+                      0
+                  ).length /
+                    (currentData.length === 0 ? 1 : currentData.length)) *
+                  100
+                ).toFixed(2)}
+                %
+              </Typography>
+            </div>
+          </Box>
+        </Card>
+      }
+    />
+  );
+});
+
+const PaperContent = memo(function PaperContent({ title, data }) {
+  const isSmallScreen = useMediaQuery("(max-width:600px)");
+
+  const [currentData, setCurrentData] = useState(data);
+  const [value, setValue] = useState("month");
+
+  const weeksData =
+    value === "week"
+      ? splitWeekDataByDay(currentData)
+      : splitMonthDataByWeek(currentData);
+
+  return (
+    <>
+      <CardHeader
+        title={title}
+        titleTypographyProps={{ variant: "h4" }}
+        action={
+          <Breadcrumbs
+            separator={
+              <Box
+                sx={{
+                  width: "4px",
+                  height: "4px",
+                  borderRadius: "50%",
+                  backgroundColor: "rgb(99, 115, 129)",
+                }}
+              />
+            }
+          >
+            <Typography
+              variant="body2"
+              component="div"
+              color={value === "month" ? "text.primary" : "text.secondary"}
+              onClick={() => {
+                setValue("month");
+                setCurrentData(data);
+              }}
+              sx={{
+                cursor: "pointer",
+                ":hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              месяц
+            </Typography>
+            <Typography
+              variant="body2"
+              color={value === "week" ? "text.primary" : "text.secondary"}
+              sx={{
+                cursor: "default",
+                ":hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              неделя
+            </Typography>
+            <Typography
+              variant="body2"
+              color={value === "day" ? "text.primary" : "text.secondary"}
+              sx={{
+                cursor: "default",
+                ":hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              день
+            </Typography>
+          </Breadcrumbs>
+        }
+        sx={{ pb: 8 }}
+      />
+      <Tree
+        label={<RootTreeNode currentData={currentData} />}
+        lineWidth="1px"
+        lineHeight="40px"
+        lineBorderRadius="20px"
+        lineColor="rgba(145, 158, 171, 0.2)"
+      >
+        {value === "week" ? (
+          <>
+            {/* 1-3 дни */}
+            <DayTreeNode
+              index={4}
+              setValue={setValue}
+              trades={weeksData[4]}
+              setCurrentData={setCurrentData}
+            >
+              <DayTreeNode
+                index={5}
+                setValue={setValue}
+                trades={weeksData[5]}
+                setCurrentData={setCurrentData}
+              >
+                <DayTreeNode
+                  index={6}
+                  setValue={setValue}
+                  trades={weeksData[6]}
+                  setCurrentData={setCurrentData}
+                />
+              </DayTreeNode>
+            </DayTreeNode>
+            {/* 4-5 дни */}
+            <DayTreeNode
+              index={0}
+              setValue={setValue}
+              trades={weeksData[0]}
+              setCurrentData={setCurrentData}
+            >
+              <DayTreeNode
+                index={1}
+                setValue={setValue}
+                trades={weeksData[1]}
+                setCurrentData={setCurrentData}
+              />
+            </DayTreeNode>
+            {/* 6-7 дни */}
+            <DayTreeNode
+              index={2}
+              setValue={setValue}
+              trades={weeksData[2]}
+              setCurrentData={setCurrentData}
+            >
+              <DayTreeNode
+                index={3}
+                setValue={setValue}
+                trades={weeksData[3]}
+                setCurrentData={setCurrentData}
+              />
+            </DayTreeNode>
+          </>
+        ) : value === "day" ? (
+          <KlineChartTreeNode />
+        ) : (
+          <>
+            <WeekTreeNode
+              setValue={setValue}
+              trades={weeksData[0]}
+              setCurrentData={setCurrentData}
+            >
+              <WeekTreeNode
+                setValue={setValue}
+                trades={weeksData[2]}
+                setCurrentData={setCurrentData}
+              >
+                <WeekTreeNode
+                  setValue={setValue}
+                  trades={weeksData[4]}
+                  setCurrentData={setCurrentData}
+                />
+              </WeekTreeNode>
+            </WeekTreeNode>
+            <WeekTreeNode
+              setValue={setValue}
+              trades={weeksData[1]}
+              setCurrentData={setCurrentData}
+            >
+              <WeekTreeNode
+                setValue={setValue}
+                trades={weeksData[3]}
+                setCurrentData={setCurrentData}
+              />
+            </WeekTreeNode>
+          </>
+        )}
+      </Tree>
+    </>
+  );
+});
+
+export default function Index() {
+  const { user } = useUser();
+
+  const [data, setData] = useState({});
+  const [init, setInit] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [current, setCurrent] = useState(DateTime.now());
+
+  useEffect(() => {
+    fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/time?startTime=${current
+        .startOf("month")
+        .toMillis()}&endTime=${current.endOf("month").toMillis()}`,
+      {
+        headers: {
+          "X-ABOBA-UID": user.id,
+        },
+      }
+    )
+      .then((res) => res.json())
+      .then((r) => {
+        setLoading(false);
+        setData((prev) => {
+          let n = { ...prev };
+          var { year, monthLong } = current;
+
+          if (n[year]) {
+            n[year][monthLong] = r;
+          } else {
+            n[year] = {
+              [monthLong]: r,
+            };
+          }
+
+          return n;
+        });
+        setInit(false);
+      });
+  }, [current]);
+
+  return init ? (
+    <Box
+      sx={{
+        width: "100%",
+        height: "65vh;",
+        display: "flex",
+        alignItems: "center",
+        flexDirection: "column",
+        justifyContent: "center",
+      }}
+    >
+      <LinearProgress
+        color="inherit"
+        sx={{
+          width: "35%",
+          height: "5px",
+          borderRadius: "16px",
+          color: "text.primary",
+        }}
+      />
+    </Box>
+  ) : (
+    <>
+      {Object.keys(data)
+        .reverse()
+        .map((y) => (
+          <React.Fragment key={y}>
+            <Typography variant="h2" color="text.primary" paragraph>
+              {y}
+            </Typography>
+            <Divider />
+            {Object.keys(data[y]).map((m) => (
+              <Paper
+                key={m}
+                sx={{
+                  pb: 8,
+                  mt: 3,
+                  mb: 3,
+                  backgroundImage: "none",
+                  backgroundColor: "rgba(145, 158, 171, 0.04)",
+                  border: "1px dashed rgba(145, 158, 171, 0.16)",
+                }}
+              >
+                <PaperContent
+                  title={m.charAt(0).toUpperCase() + m.slice(1)}
+                  data={data[y][m]}
+                />
+              </Paper>
+            ))}
+          </React.Fragment>
+        ))}
+      <LoadingButton
+        variant="outlined"
+        color="inherit"
+        size="large"
+        fullWidth
+        loading={loading}
+        onClick={() => {
+          setLoading(true);
+          setCurrent((prev) => prev.minus({ months: 1 }));
+        }}
+        sx={{
+          mt: 3,
+          maxWidth: 400,
+          border: "1px solid rgba(145, 158, 171, 0.32)",
+        }}
+      >
+        Загрузить ещё
+      </LoadingButton>
+    </>
+  );
+}
+
+function splitWeekDataByDay(weekData) {
+  const daysData = [[], [], [], [], [], [], []]; // Массивы для хранения данных по дням (7 дней)
+
+  for (const trade of weekData) {
+    const dayOfWeek =
+      DateTime.fromMillis(parseInt(trade.entry_time)).weekday - 1;
+    daysData[dayOfWeek].push(trade);
+  }
+
+  return daysData;
+}
+
+function splitMonthDataByWeek(monthData) {
+  const weeksData = [[], [], [], [], []];
+
+  let currentWeekIndex = 0;
+  for (const trade of monthData) {
+    const weekOfMonth = Math.floor(
+      (DateTime.fromMillis(parseInt(trade.entry_time)).day - 1) / 7
+    );
+
+    if (weekOfMonth === currentWeekIndex) {
+      weeksData[currentWeekIndex].push(trade);
+    } else {
+      currentWeekIndex = weekOfMonth;
+      weeksData[currentWeekIndex].push(trade);
+    }
+  }
+
+  return weeksData;
+}
+
+{
+  /* <ChildTreeNode
+bebra={weeksData[0]}
+setValue={setValue}
+setCurrentData={setCurrentData}
+>
+<ChildTreeNode
+  bebra={weeksData[1]}
+  setValue={setValue}
+  setCurrentData={setCurrentData}
+>
+  <ChildTreeNode
+    bebra={weeksData[2]}
+    setValue={setValue}
+    setCurrentData={setCurrentData}
+  >
+    <ChildTreeNode
+      bebra={weeksData[3]}
+      setValue={setValue}
+      setCurrentData={setCurrentData}
+    >
+      <ChildTreeNode
+        bebra={weeksData[4]}
+        setValue={setValue}
+        setCurrentData={setCurrentData}
+      />
+    </ChildTreeNode>
+  </ChildTreeNode>
+</ChildTreeNode>
+</ChildTreeNode> */
+}
+
+
+

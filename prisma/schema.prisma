@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Users {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String    @db.TinyText
+  surname      String?   @db.TinyText
+  password     String
+  public       String?   @unique
+  private      Boolean   @default(false)
+  convert      Boolean   @default(false)
+  activated_at DateTime?
+  created_at   DateTime  @default(now())
+
+  Keys          Keys[]          @relation("uid")
+  Boards        Boards[]        @relation("uid")
+  Trades        Trades[]        @relation("uid")
+  Notifications Notifications[] @relation("uid")
+
+  @@map("users")
+}
+
+model Keys {
+  id         Int     @id @default(autoincrement())
+  uid        String
+  api_key    String  @unique
+  secret_key String
+  title      String  @db.TinyText
+  phrase     String? @db.TinyText
+  exchange   Int     @db.TinyInt()
+
+  Trades Trades[] @relation("kid")
+
+  UO Users @relation("uid", fields: [uid], references: [id])
+
+  @@map("keys")
+}
+
+model Trades {
+  id              Int    @id @default(autoincrement())
+  uid             String
+  kid             Int?
+  exchange        Int    @db.TinyInt()
+  symbol          String @db.TinyText
+  tags            Json?
+  rating          Int?   @db.TinyInt()
+  entry_time      String @db.TinyText
+  exit_time       String @db.TinyText
+  duration        Int
+  deposit         Int    @db.MediumInt
+  side            Side
+  procent         Float
+  funding         Float?
+  income          Float
+  profit          Float
+  turnover        Float
+  max_volume      Float
+  volume          Float
+  commission      Float
+  avg_entry_price Float
+  avg_exit_price  Float
+  deals           Json
+
+  UO Users @relation("uid", fields: [uid], references: [id])
+  KO Keys? @relation("kid", fields: [kid], references: [id])
+
+  @@map("trades")
+}
+
+model Boards {
+  id      Int    @id @default(autoincrement())
+  uid     String
+  title   String @db.TinyText
+  widgets Json?
+
+  UO Users @relation("uid", fields: [uid], references: [id])
+
+  @@map("boards")
+}
+
+model Notifications {
+  id         Int      @id @default(autoincrement())
+  uid        String
+  read       Boolean  @default(false)
+  title      String   @db.TinyText
+  image_url  String   @db.TinyText
+  created_at DateTime @default(now())
+
+  UO Users @relation("uid", fields: [uid], references: [id])
+
+  @@map("notifications")
+}
+
+enum Side {
+  BUY
+  SELL
+}
